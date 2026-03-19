@@ -1,0 +1,1352 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>السبورة اللانهائية</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700&display=swap');
+        body { font-family:'Tajawal',sans-serif; overflow:hidden; background:#f3f4f6; }
+        ::-webkit-scrollbar{width:5px;height:5px}
+        ::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:10px}
+        ::-webkit-scrollbar-thumb:hover{background:#94a3b8}
+
+        .glass{
+            background:rgba(255,255,255,0.97);
+            backdrop-filter:blur(12px);
+            border:1px solid rgba(200,210,230,0.5);
+            box-shadow:0 4px 24px rgba(0,0,0,0.08);
+        }
+        .glass.dk{background:rgba(18,26,42,0.97);border:1px solid rgba(255,255,255,0.09);color:#e2e8f0}
+
+        .tb{padding:7px;border-radius:8px;transition:all .15s;display:flex;align-items:center;justify-content:center;color:#475569;cursor:pointer;user-select:none}
+        .tb:hover{background:#e2e8f0}
+        .dk .tb{color:#cbd5e1}
+        .dk .tb:hover{background:#1e3a5f}
+        .tb.on{background:#3b82f6!important;color:#fff!important}
+        .tb.red{color:#ef4444}
+
+        #cv-wrap{position:absolute;inset:0;z-index:1}
+        #ui{position:absolute;inset:0;pointer-events:none;z-index:10}
+        .pe{pointer-events:auto}
+
+        input[type=color]{-webkit-appearance:none;border:none;width:28px;height:28px;border-radius:50%;overflow:hidden;cursor:pointer;padding:0}
+        input[type=color]::-webkit-color-swatch-wrapper{padding:0}
+        input[type=color]::-webkit-color-swatch{border:none;border-radius:50%}
+
+        /* Generic panel hide/show */
+        .panel-animated { transition:opacity .22s, transform .22s; }
+        .panel-hidden { opacity:0 !important; pointer-events:none !important; }
+
+        /* Side panel (right) */
+        #side-p{position:absolute;top:72px;right:4px;width:232px;}
+        #side-p.panel-hidden{transform:translateX(16px)}
+
+        /* Layers panel (left) */
+        #lay-panel{
+            position:absolute;left:4px;top:50%;
+            transform:translateY(-50%);
+            width:218px;max-height:68vh;
+            display:flex;flex-direction:column;
+        }
+        #lay-panel.panel-hidden{transform:translateY(-50%) translateX(-18px)}
+        #lay-list{overflow-y:auto;flex:1}
+
+        .li{
+            display:flex;align-items:center;gap:6px;padding:6px 8px;
+            border-radius:8px;cursor:pointer;transition:background .12s;
+            border:2px solid transparent;margin-bottom:3px
+        }
+        .li:hover{background:#f1f5f9}
+        .li.sel{background:#eff6ff;border-color:#3b82f6}
+        .dk .li:hover{background:#1e293b}
+        .dk .li.sel{background:#1e3a5f;border-color:#3b82f6}
+        .lthumb{width:32px;height:32px;border-radius:5px;border:1px solid #e2e8f0;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:15px}
+
+        /* Pages bar (bottom-center) */
+        #pages-bar{
+            position:absolute;bottom:14px;left:50%;
+            transform:translateX(-50%);
+            display:flex;align-items:center;gap:5px;
+        }
+        #pages-bar.panel-hidden{transform:translateX(-50%) translateY(20px)}
+
+        .pg-btn{
+            min-width:36px;height:36px;border-radius:10px;
+            display:flex;align-items:center;justify-content:center;
+            cursor:pointer;font-size:13px;font-weight:700;
+            transition:all .15s;padding:0 10px;
+            background:rgba(255,255,255,0.93);
+            color:#475569;
+            border:1px solid rgba(200,210,230,0.6);
+            box-shadow:0 2px 8px rgba(0,0,0,0.06);
+        }
+        .pg-btn:hover{transform:translateY(-2px);box-shadow:0 4px 12px rgba(0,0,0,0.12)}
+        .pg-btn.cur{background:#3b82f6!important;color:#fff!important;border-color:#3b82f6}
+        .pg-add{background:rgba(255,255,255,0.93);color:#3b82f6;border:2px dashed #93c5fd}
+
+        .sep{width:1px;height:28px;background:#e2e8f0;margin:0 2px;flex-shrink:0}
+        .dk .sep{background:#334155}
+
+        /* Dropdown shapes/export */
+        .dd-wrap{display:none}
+        .dd-parent:hover .dd-wrap{display:block}
+
+        /* Toolbar */
+        #toolbar{ transition:opacity .22s, transform .22s; }
+        #toolbar.panel-hidden{ transform:translateX(-50%) translateY(-20px); }
+
+        /* Floating selection toolbar */
+        #sel-bar{
+            position:fixed;z-index:30;display:none;align-items:center;gap:3px;
+            padding:5px 8px;border-radius:14px;transform:translateX(-50%);
+            pointer-events:auto;white-space:nowrap;
+        }
+        #sel-bar.show{ display:flex; }
+        .stb{
+            padding:5px 9px;border-radius:8px;
+            display:flex;align-items:center;gap:4px;
+            font-size:12px;font-weight:600;cursor:pointer;
+            transition:all .12s;border:none;background:transparent;color:#475569;
+        }
+        .stb:hover{background:rgba(0,0,0,0.06)}
+        .stb.stb-red{color:#ef4444}
+        .stb-sep{width:1px;height:20px;background:#e2e8f0;margin:0 2px;flex-shrink:0}
+
+        /* Canvas right-click context menu */
+        .ctx-item{
+            display:flex;align-items:center;gap:9px;width:100%;
+            padding:8px 12px;border-radius:8px;border:none;background:transparent;
+            cursor:pointer;font-family:Tajawal,sans-serif;font-size:13px;font-weight:600;
+            color:#334155;text-align:right;direction:rtl;transition:background .1s;
+        }
+        .ctx-item:hover{background:#f1f5f9}
+        .dk .ctx-item{color:#e2e8f0}
+        .dk .ctx-item:hover{background:#1e293b}
+        .ctx-item span:first-of-type{flex:1;text-align:right}
+        .ctx-hint{font-size:10px;color:#94a3b8;font-weight:400;white-space:nowrap}
+        .ctx-red{color:#ef4444!important}
+        .ctx-paste{color:#7c3aed!important}
+        .ctx-sep{height:1px;background:#e2e8f0;margin:4px 0}
+        .dk .ctx-sep{background:#334155}
+        .ctx-empty{padding:8px 12px;font-size:12px;color:#94a3b8;text-align:center}
+        /* Red shape names */
+        .sn{color:#ef4444!important;font-weight:600}
+        /* Red download texts */
+        .dlt{color:#ef4444!important;font-weight:600}
+    </style>
+</head>
+<body>
+
+<!-- ============ DASHBOARD ============ -->
+<div id="dash" class="w-full h-screen overflow-y-auto p-8 z-50 relative">
+    <div class="max-w-6xl mx-auto">
+        <div class="flex justify-between items-center mb-10">
+            <div>
+                <h1 class="text-4xl font-bold text-gray-800 mb-1">السبورات المحفوظة</h1>
+                <p class="text-gray-400 text-sm">إنشاء سبورات جديدة أو إكمال عملك</p>
+            </div>
+            <button onclick="openModal()" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 shadow-lg">
+                <i data-lucide="plus"></i> سبورة جديدة
+            </button>
+        </div>
+        <div id="boards-grid" class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-5"></div>
+    </div>
+</div>
+
+<!-- New Board Modal -->
+<div id="modal" class="fixed inset-0 bg-black/50 items-center justify-center z-[60]" style="display:none">
+    <div class="bg-white rounded-2xl p-8 w-96 shadow-2xl">
+        <h2 class="text-2xl font-bold mb-5">إنشاء سبورة جديدة</h2>
+        <div class="mb-4">
+            <label class="block text-gray-600 text-sm mb-1">عنوان السبورة</label>
+            <input type="text" id="nb-title" class="w-full border border-gray-200 rounded-lg p-3 outline-none focus:border-blue-400" placeholder="سبورة بدون عنوان">
+        </div>
+        <div class="mb-6">
+            <label class="block text-gray-600 text-sm mb-2">الثيم</label>
+            <div class="flex gap-3">
+                <label class="flex-1 cursor-pointer">
+                    <input type="radio" name="nb-theme" value="white" checked class="hidden peer">
+                    <div class="border-2 border-gray-200 peer-checked:border-blue-500 rounded-lg p-3 text-center bg-white font-bold text-sm">بيضاء</div>
+                </label>
+                <label class="flex-1 cursor-pointer">
+                    <input type="radio" name="nb-theme" value="black" class="hidden peer">
+                    <div class="border-2 border-gray-700 peer-checked:border-blue-500 rounded-lg p-3 text-center bg-black text-white font-bold text-sm">سوداء</div>
+                </label>
+            </div>
+        </div>
+        <div class="flex gap-3">
+            <button onclick="closeModal()" class="flex-1 px-4 py-2 border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50">إلغاء</button>
+            <button onclick="createBoard()" class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">إنشاء</button>
+        </div>
+    </div>
+</div>
+
+<!-- ============ BOARD VIEW ============ -->
+<div id="bv" class="hidden w-full h-screen relative">
+    <div id="cv-wrap"><canvas id="mc"></canvas></div>
+
+    <button id="show-ui-btn" onclick="toggleUI()" class="fixed top-4 left-1/2 -translate-x-1/2 z-20 bg-blue-600 text-white px-4 py-2 rounded-full shadow-lg hidden pe hover:bg-blue-700 text-sm font-bold" style="display:none;align-items:center;gap:6px">
+        <i data-lucide="eye" style="width:14px;height:14px"></i> إظهار الواجهة
+    </button>
+
+    <div id="ui">
+
+        <!-- TOOLBAR -->
+        <div id="toolbar" class="glass pe panel-animated absolute top-4 left-1/2 -translate-x-1/2 rounded-2xl p-2 flex gap-1 items-center" style="z-index:20">
+            <button onclick="goHome()" class="tb red" title="الرئيسية"><i data-lucide="home"></i></button>
+            <div class="sep"></div>
+            <button onclick="setMode('select')" id="b-sel" class="tb" title="تحديد"><i data-lucide="mouse-pointer-2"></i></button>
+            <button onclick="setMode('pan')" id="b-pan" class="tb" title="تحريك"><i data-lucide="hand"></i></button>
+            <button onclick="setMode('draw')" id="b-draw" class="tb" title="قلم"><i data-lucide="pen-tool"></i></button>
+            <button onclick="setMode('text')" id="b-text" class="tb" title="نص"><i data-lucide="type"></i></button>
+
+            <div class="relative dd-parent">
+                <button class="tb" title="الأشكال"><i data-lucide="shapes"></i></button>
+                <div class="dd-wrap absolute top-full right-0 pt-2 z-50 w-[460px]">
+                    <div class="bg-white border border-gray-100 rounded-xl shadow-xl p-4 grid grid-cols-4 gap-1">
+                        <div class="col-span-4 text-xs font-bold text-gray-400 mb-1">خطوط وأسهم</div>
+                        <button onclick="addShape('line')" class="tb text-xs"><span class="sn">خط</span></button>
+                        <button onclick="addShape('line-ar')" class="tb text-xs"><span class="sn">← سهم</span></button>
+                        <button onclick="addShape('line-al')" class="tb text-xs"><span class="sn">سهم →</span></button>
+                        <button onclick="addShape('line-ab')" class="tb text-xs"><span class="sn">↔ سهمين</span></button>
+                        <div class="col-span-4 text-xs font-bold text-gray-400 mb-1 mt-2">ثنائية الأبعاد</div>
+                        <button onclick="addShape('triangle')" class="tb text-xs"><span class="sn">مثلث</span></button>
+                        <button onclick="addShape('square')" class="tb text-xs"><span class="sn">مربع</span></button>
+                        <button onclick="addShape('rect')" class="tb text-xs"><span class="sn">مستطيل</span></button>
+                        <button onclick="addShape('para')" class="tb text-xs"><span class="sn">متوازي</span></button>
+                        <button onclick="addShape('rhombus')" class="tb text-xs"><span class="sn">معين</span></button>
+                        <button onclick="addShape('trap')" class="tb text-xs"><span class="sn">شبه منحرف</span></button>
+                        <button onclick="addShape('circle')" class="tb text-xs"><span class="sn">دائرة</span></button>
+                        <button onclick="addShape('ellipse')" class="tb text-xs"><span class="sn">بيضوي</span></button>
+                        <button onclick="addShape('semi')" class="tb text-xs"><span class="sn">نصف دائرة</span></button>
+                        <button onclick="addShape('pent')" class="tb text-xs"><span class="sn">خماسي</span></button>
+                        <button onclick="addShape('hex')" class="tb text-xs"><span class="sn">سداسي</span></button>
+                        <button onclick="addShape('oct')" class="tb text-xs"><span class="sn">ثماني</span></button>
+                        <div class="col-span-4 text-xs font-bold text-gray-400 mb-1 mt-2">ثلاثية الأبعاد</div>
+                        <button onclick="addShape('cube')" class="tb text-xs"><span class="sn">مكعب</span></button>
+                        <button onclick="addShape('sphere')" class="tb text-xs"><span class="sn">كرة</span></button>
+                        <button onclick="addShape('cylinder')" class="tb text-xs"><span class="sn">أسطوانة</span></button>
+                        <button onclick="addShape('cone')" class="tb text-xs"><span class="sn">مخروط</span></button>
+                        <button onclick="addShape('pyramid')" class="tb text-xs"><span class="sn">هرم</span></button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="sep"></div>
+            <button onclick="setMode('eraser')" id="b-eraser" class="tb" title="ممحاة حقيقية"><i data-lucide="eraser"></i></button>
+            <button onclick="delSelected()" class="tb red" title="حذف المحدد"><i data-lucide="trash-2"></i></button>
+            <div class="sep"></div>
+
+            <div class="flex items-center gap-2 px-1">
+                <input type="color" id="c1" value="#3b82f6" oninput="updateColors()" onchange="updateColors()" title="اللون الأساسي">
+                <input type="color" id="c2" value="#ec4899" oninput="updateColors()" onchange="updateColors()" title="اللون الثانوي">
+                <label class="flex items-center gap-1 text-xs cursor-pointer text-gray-600" style="white-space:nowrap">
+                    <input type="checkbox" id="chk-grad" onchange="updateColors()"> تدرج
+                </label>
+                <label class="flex items-center gap-1 text-xs cursor-pointer text-gray-600" style="white-space:nowrap">
+                    <input type="checkbox" id="chk-hol" onchange="updateColors()"> مجوف
+                </label>
+            </div>
+
+            <div class="sep"></div>
+            <button onclick="undo()" class="tb" title="تراجع Ctrl+Z"><i data-lucide="undo-2"></i></button>
+            <button onclick="redo()" class="tb" title="تقدم Ctrl+Y"><i data-lucide="redo-2"></i></button>
+            <div class="sep"></div>
+
+            <button onclick="toggleLayers()" id="b-layers" class="tb" title="الطبقات"><i data-lucide="layers"></i></button>
+            <button onclick="toggleUI()" class="tb" title="إخفاء الواجهة"><i data-lucide="eye-off"></i></button>
+
+            <div class="relative dd-parent">
+                <button class="tb" title="تحميل"><i data-lucide="download"></i></button>
+                <div class="dd-wrap absolute top-full left-0 pt-2 z-50 w-44">
+                    <div class="bg-white border border-gray-100 rounded-xl shadow-xl p-2 flex flex-col gap-1">
+                        <button onclick="exportPNG()" class="text-right px-4 py-2 hover:bg-gray-50 rounded-lg text-sm w-full"><span class="dlt">تحميل PNG</span></button>
+                        <button onclick="exportPDF()" class="text-right px-4 py-2 hover:bg-gray-50 rounded-lg text-sm w-full"><span class="dlt">تحميل PDF</span></button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SIDE PANEL -->
+        <div id="side-p" class="glass pe panel-animated rounded-2xl p-4" style="z-index:15">
+            <h3 class="font-bold mb-3 text-sm border-b pb-2" id="sp-title" style="color:#1e293b">الخصائص</h3>
+            <div class="mb-3">
+                <label class="block text-xs text-gray-400 mb-1">الحجم (قلم / نص / ممحاة)</label>
+                <input type="range" id="sz" min="1" max="150" value="20" class="w-full" oninput="updateSize(this.value)">
+                <div class="text-center text-xs mt-1 text-gray-400" id="sz-val">20px</div>
+            </div>
+            <div class="border-t pt-3 mb-3">
+                <h4 class="font-bold text-xs mb-2 text-gray-500">الصور والخلفيات</h4>
+                <input type="file" id="img-up" accept="image/*" class="hidden" onchange="doImgUpload(event)">
+                <button onclick="document.getElementById('img-up').click()" class="w-full bg-blue-50 text-blue-600 hover:bg-blue-100 px-3 py-2 rounded-lg text-xs mb-2 flex justify-center items-center gap-1">
+                    <i data-lucide="image" style="width:12px;height:12px"></i> إدراج صورة
+                </button>
+                <input type="file" id="bg-up" accept="image/*" class="hidden" onchange="doBgUpload(event)">
+                <button onclick="document.getElementById('bg-up').click()" class="w-full bg-purple-50 text-purple-600 hover:bg-purple-100 px-3 py-2 rounded-lg text-xs mb-2 flex justify-center items-center gap-1">
+                    <i data-lucide="wallpaper" style="width:12px;height:12px"></i> تعيين خلفية
+                </button>
+                <button onclick="clearBg()" class="w-full bg-gray-100 text-gray-600 hover:bg-gray-200 px-3 py-2 rounded-lg text-xs flex justify-center items-center gap-1">
+                    <i data-lucide="eraser" style="width:12px;height:12px"></i> مسح الخلفية
+                </button>
+            </div>
+            <div id="img-resize" class="hidden border-t pt-3">
+                <h4 class="font-bold text-xs mb-2 text-gray-500">أبعاد الصورة</h4>
+                <div class="flex gap-2">
+                    <div class="flex-1"><label class="text-xs text-gray-400">عرض</label>
+                        <input type="number" id="iw" class="w-full border rounded p-1 text-xs text-black" onchange="resizeImg()"></div>
+                    <div class="flex-1"><label class="text-xs text-gray-400">طول</label>
+                        <input type="number" id="ih" class="w-full border rounded p-1 text-xs text-black" onchange="resizeImg()"></div>
+                </div>
+            </div>
+            <div class="mt-3 border-t pt-3">
+                <p class="text-xs text-gray-400 text-center">عجلة الفأرة: تكبير/تصغير<br>أداة اليد: التنقل</p>
+            </div>
+        </div>
+
+        <!-- LAYERS PANEL -->
+        <div id="lay-panel" class="glass pe panel-animated rounded-2xl p-3 panel-hidden" style="z-index:15">
+            <div class="flex items-center justify-between mb-2 border-b pb-2">
+                <h3 class="font-bold text-sm" id="lay-title">الطبقات</h3>
+                <div class="flex gap-1">
+                    <button onclick="layUp()" class="tb p-0" style="width:22px;height:22px" title="للأعلى">
+                        <i data-lucide="chevron-up" style="width:12px;height:12px"></i>
+                    </button>
+                    <button onclick="layDown()" class="tb p-0" style="width:22px;height:22px" title="للأسفل">
+                        <i data-lucide="chevron-down" style="width:12px;height:12px"></i>
+                    </button>
+                    <button onclick="delSelected()" class="tb p-0 red" style="width:22px;height:22px" title="حذف">
+                        <i data-lucide="trash-2" style="width:12px;height:12px"></i>
+                    </button>
+                </div>
+            </div>
+            <div id="lay-list" style="max-height:52vh;overflow-y:auto;min-width:196px"></div>
+        </div>
+
+        <!-- PAGES BAR -->
+        <div id="pages-bar" class="glass pe panel-animated rounded-2xl px-3 py-2" style="z-index:15">
+            <div id="pages-inner" class="flex items-center gap-2"></div>
+        </div>
+
+
+        <!-- FLOATING SELECTION TOOLBAR -->
+        <div id="sel-bar" class="glass pe">
+            <div title="تغيير اللون" style="display:flex;align-items:center;gap:5px;cursor:pointer">
+                <i data-lucide="palette" style="width:13px;height:13px;color:#7c3aed;flex-shrink:0"></i>
+                <input type="color" id="sel-clr" title="تغيير اللون" style="-webkit-appearance:none;border:none;width:22px;height:22px;border-radius:50%;overflow:hidden;cursor:pointer;padding:0;outline:2px solid #e2e8f0;outline-offset:1px" oninput="applySelColor(this.value)" onchange="applySelColor(this.value)">
+            </div>
+            <button id="sel-hollow-btn" class="stb" onclick="toggleSelHollow()" title="مجوف / مملوء" style="gap:3px;padding:4px 8px;font-size:11px">
+                <i data-lucide="circle-dashed" style="width:12px;height:12px"></i>
+                <span id="sel-hollow-lbl">مجوف</span>
+            </button>
+            <button id="sel-grad-btn" class="stb" onclick="toggleSelGradient()" title="تدرج لوني" style="gap:3px;padding:4px 8px;font-size:11px">
+                <i data-lucide="blend" style="width:12px;height:12px"></i>
+                <span>تدرج</span>
+            </button>
+            <input type="color" id="sel-clr2" value="#ec4899" style="-webkit-appearance:none;border:none;width:18px;height:18px;border-radius:50%;overflow:hidden;cursor:pointer;padding:0;outline:2px solid #e2e8f0;outline-offset:1px;display:none"
+                oninput="applySelGradient()" onchange="applySelGradient()" title="اللون الثاني">
+            <div class="stb-sep"></div>
+            <button class="stb" onclick="copySelected()" title="نسخ Ctrl+C">
+                <i data-lucide="copy" style="width:13px;height:13px"></i> نسخ
+            </button>
+            <button class="stb" onclick="pasteClipboard()" title="لصق Ctrl+V">
+                <i data-lucide="clipboard-paste" style="width:13px;height:13px"></i> لصق
+            </button>
+            <div class="stb-sep"></div>
+            <button class="stb" onclick="dupSelected()" title="تكرار">
+                <i data-lucide="copy-plus" style="width:13px;height:13px"></i> تكرار
+            </button>
+            <div class="stb-sep"></div>
+            <button class="stb" onclick="rotateSelected(-15)" title="تدوير يساراً 15°">
+                <i data-lucide="rotate-ccw" style="width:13px;height:13px"></i>
+            </button>
+            <div style="display:flex;align-items:center;gap:2px">
+                <input type="number" id="rot-input" value="0" min="-360" max="360"
+                    style="width:46px;height:26px;border:1px solid #e2e8f0;border-radius:6px;text-align:center;font-size:11px;font-family:Tajawal,sans-serif;outline:none;padding:0 2px"
+                    oninput="setRotation(+this.value)" title="زاوية التدوير">
+                <span style="font-size:10px;color:#94a3b8">°</span>
+            </div>
+            <button class="stb" onclick="rotateSelected(15)" title="تدوير يميناً 15°">
+                <i data-lucide="rotate-cw" style="width:13px;height:13px"></i>
+            </button>
+            <div class="stb-sep"></div>
+            <button class="stb stb-red" onclick="delSelected()" title="حذف Delete">
+                <i data-lucide="trash-2" style="width:13px;height:13px"></i> حذف
+            </button>
+        </div>
+
+    </div>
+</div>
+
+<script>
+lucide.createIcons();
+
+// ============ STATE ============
+let boards = JSON.parse(localStorage.getItem('ib_v2')||'[]');
+let currentBoardId = null;
+let canvas = null;
+let curMode = 'select';
+let isPanning = false, lpx=0, lpy=0;
+let hist = [], hIdx = -1, histLock = false;
+let clr1='#3b82f6', clr2='#ec4899', useGrad=false, hollow=false, sz=20;
+let layVisible = false;
+let isDark = false;
+let curPageIdx = 0;
+let uiOn = true;
+
+// ============ DASHBOARD ============
+function initApp(){ renderDash(); }
+
+function renderDash(){
+    const g=document.getElementById('boards-grid');
+    g.innerHTML='';
+    boards.forEach(b=>{
+        const c=document.createElement('div');
+        c.className='bg-white p-5 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow relative group';
+        const tc=b.theme==='black'?'bg-black text-white':'bg-gray-100 text-gray-700';
+        const pgCount=(b.pages||[]).length||1;
+        c.innerHTML=`
+            <div class="w-full h-28 ${tc} rounded-xl mb-3 flex items-center justify-center border text-sm opacity-50">معاينة</div>
+            <input type="text" value="${b.title}" onchange="updTitle('${b.id}',this.value)"
+                class="font-bold text-base text-gray-800 w-full border-none focus:ring-0 p-0 mb-1 bg-transparent">
+            <p class="text-xs text-gray-400 mb-1">${pgCount} صفحة · ${new Date(b.updatedAt).toLocaleDateString()}</p>
+            <div class="flex gap-2 mt-3">
+                <button onclick="openBoard('${b.id}')" class="flex-1 bg-blue-50 text-blue-600 hover:bg-blue-100 py-2 rounded-lg font-bold text-sm">فتح</button>
+            </div>
+            <button onclick="delBoard('${b.id}')" class="absolute top-2 left-2 bg-white/80 text-red-400 p-2 rounded-lg opacity-0 group-hover:opacity-100 hover:bg-red-50 shadow-sm">
+                <i data-lucide="trash-2" style="width:14px;height:14px"></i>
+            </button>`;
+        g.appendChild(c);
+    });
+    lucide.createIcons();
+}
+
+function openModal(){
+    document.getElementById('modal').style.display='flex';
+    document.getElementById('nb-title').value='';
+}
+function closeModal(){ document.getElementById('modal').style.display='none'; }
+
+function createBoard(){
+    const title=document.getElementById('nb-title').value.trim()||'سبورة بدون عنوان';
+    const theme=document.querySelector('input[name="nb-theme"]:checked').value;
+    const b={id:'b'+Date.now(),title,theme,pages:[{id:'pg'+Date.now(),data:null}],curPage:0,updatedAt:Date.now()};
+    boards.push(b);
+    saveBoards();
+    closeModal();
+    openBoard(b.id);
+}
+
+function updTitle(id,v){
+    const b=boards.find(x=>x.id===id);
+    if(b){b.title=v;b.updatedAt=Date.now();saveBoards();}
+}
+
+function delBoard(id){
+    if(!confirm('حذف السبورة نهائياً؟')) return;
+    boards=boards.filter(x=>x.id!==id);
+    saveBoards(); renderDash();
+}
+
+function saveBoards(){
+    try{ localStorage.setItem('ib_v2',JSON.stringify(boards)); }
+    catch(e){ alert('مساحة التخزين ممتلئة!'); }
+}
+
+function goHome(){
+    savePageData();
+    document.getElementById('bv').classList.add('hidden');
+    document.getElementById('dash').classList.remove('hidden');
+    if(canvas){ canvas.dispose(); canvas=null; }
+    renderDash();
+}
+
+// ============ OPEN BOARD ============
+function openBoard(id){
+    currentBoardId=id;
+    const b=boards.find(x=>x.id===id);
+    isDark=b.theme==='black';
+    if(!b.pages||!b.pages.length) b.pages=[{id:'pg0',data:null}];
+    if(b.curPage===undefined||b.curPage>=b.pages.length) b.curPage=0;
+    curPageIdx=b.curPage;
+
+    document.getElementById('dash').classList.add('hidden');
+    document.getElementById('bv').classList.remove('hidden');
+    applyTheme();
+
+    if(canvas){ canvas.dispose(); canvas=null; }
+    canvas=new fabric.Canvas('mc',{
+        width:window.innerWidth,height:window.innerHeight,
+        backgroundColor:isDark?'#000':'#fff',
+        preserveObjectStacking:true,selection:true
+    });
+
+    const pd=b.pages[curPageIdx].data;
+    if(pd){ canvas.loadFromJSON(pd,()=>{ canvas.renderAll(); resetHist(); renderLayers(); }); }
+    else { resetHist(); }
+
+    setupEvents();
+    setMode('select');
+    updateColors();
+    renderPagesBar();
+    uiOn=true;
+    window.addEventListener('resize',onResize);
+}
+
+function applyTheme(){
+    ['toolbar','side-p','lay-panel','pages-bar'].forEach(id=>{
+        const el=document.getElementById(id);
+        if(!el) return;
+        isDark?el.classList.add('dk'):el.classList.remove('dk');
+    });
+    document.getElementById('bv').style.background=isDark?'#000':'#fff';
+    const st=document.getElementById('sp-title');
+    const lt=document.getElementById('lay-title');
+    const col=isDark?'#e2e8f0':'#1e293b';
+    if(st) st.style.color=col;
+    if(lt) lt.style.color=col;
+}
+
+function onResize(){
+    if(canvas){ canvas.setWidth(window.innerWidth); canvas.setHeight(window.innerHeight); canvas.renderAll(); }
+}
+
+function savePageData(){
+    if(!canvas||!currentBoardId) return;
+    const b=boards.find(x=>x.id===currentBoardId);
+    if(!b||!b.pages||!b.pages[curPageIdx]) return;
+    b.pages[curPageIdx].data=canvas.toJSON(['layerName']);
+    b.curPage=curPageIdx;
+    b.updatedAt=Date.now();
+    saveBoards();
+}
+
+setInterval(()=>{ if(!document.getElementById('bv').classList.contains('hidden')) savePageData(); },5000);
+
+// ============ PAGES ============
+function renderPagesBar(){
+    const b=boards.find(x=>x.id===currentBoardId);
+    if(!b) return;
+    const inner=document.getElementById('pages-inner');
+    inner.innerHTML='';
+
+    b.pages.forEach((pg,i)=>{
+        const btn=document.createElement('div');
+        btn.className='pg-btn'+(i===curPageIdx?' cur':'');
+        if(isDark&&i!==curPageIdx){ btn.style.background='rgba(22,32,50,0.95)'; btn.style.color='#94a3b8'; btn.style.borderColor='rgba(255,255,255,0.1)'; }
+        btn.textContent=''+(i+1);
+        btn.title='الصفحة '+(i+1)+'  (كليك يمين: حذف)';
+        btn.addEventListener('click',()=>switchPage(i));
+        btn.addEventListener('contextmenu',e=>{ e.preventDefault(); showPgMenu(e,i); });
+        inner.appendChild(btn);
+    });
+
+    // Add page
+    const add=document.createElement('div');
+    add.className='pg-btn pg-add';
+    if(isDark){ add.style.background='rgba(22,32,50,0.95)'; add.style.borderColor='#1e40af'; add.style.color='#60a5fa'; }
+    add.innerHTML='<i data-lucide="plus" style="width:14px;height:14px"></i>';
+    add.title='صفحة جديدة';
+    add.addEventListener('click',addPage);
+    inner.appendChild(add);
+
+    lucide.createIcons();
+}
+
+function switchPage(idx){
+    if(idx===curPageIdx) return;
+    savePageData();
+    curPageIdx=idx;
+    const b=boards.find(x=>x.id===currentBoardId);
+    b.curPage=curPageIdx;
+    hist=[]; hIdx=-1;
+    canvas.clear();
+    canvas.backgroundColor=isDark?'#000':'#fff';
+    const pd=b.pages[curPageIdx].data;
+    if(pd){ canvas.loadFromJSON(pd,()=>{ canvas.renderAll(); resetHist(); renderLayers(); }); }
+    else { canvas.renderAll(); resetHist(); renderLayers(); }
+    renderPagesBar();
+}
+
+function addPage(){
+    savePageData();
+    const b=boards.find(x=>x.id===currentBoardId);
+    b.pages.push({id:'pg'+Date.now(),data:null});
+    saveBoards();
+    switchPage(b.pages.length-1);
+}
+
+let ctxMenu=null;
+function showPgMenu(e,idx){
+    removePgMenu();
+    const b=boards.find(x=>x.id===currentBoardId);
+    const m=document.createElement('div');
+    m.id='pgmenu';
+    m.className='glass pe rounded-xl p-2 text-sm';
+    m.style.cssText=`position:fixed;left:${e.clientX}px;top:${e.clientY - 80}px;z-index:9999;min-width:160px`;
+    if(isDark) m.classList.add('dk');
+    m.innerHTML=`<div class="px-3 py-1 text-xs opacity-50 border-b mb-1">الصفحة ${idx+1}</div>
+    ${b.pages.length>1
+        ?`<button onclick="deletePage(${idx})" class="tb red w-full text-xs px-3 py-2 justify-start gap-2">
+            <i data-lucide="trash-2" style="width:12px;height:12px"></i> حذف الصفحة
+          </button>`
+        :'<div class="px-3 py-1 text-xs opacity-50">الصفحة الوحيدة</div>'}`;
+    document.body.appendChild(m);
+    ctxMenu=m;
+    lucide.createIcons();
+    setTimeout(()=>document.addEventListener('click',removePgMenu,{once:true}),60);
+}
+
+function removePgMenu(){ if(ctxMenu){ctxMenu.remove();ctxMenu=null;} }
+
+function deletePage(idx){
+    removePgMenu();
+    const b=boards.find(x=>x.id===currentBoardId);
+    if(b.pages.length<=1) return;
+    b.pages.splice(idx,1);
+    const ni=Math.min(curPageIdx,b.pages.length-1);
+    curPageIdx=ni; b.curPage=ni;
+    saveBoards();
+    hist=[]; hIdx=-1;
+    canvas.clear();
+    canvas.backgroundColor=isDark?'#000':'#fff';
+    const pd=b.pages[curPageIdx].data;
+    if(pd){ canvas.loadFromJSON(pd,()=>{ canvas.renderAll(); resetHist(); renderLayers(); }); }
+    else { canvas.renderAll(); resetHist(); renderLayers(); }
+    renderPagesBar();
+}
+
+// ============ CANVAS EVENTS ============
+function setupEvents(){
+    canvas.on('mouse:wheel',opt=>{
+        let z=canvas.getZoom()*(0.999**opt.e.deltaY);
+        z=Math.min(Math.max(z,0.01),20);
+        canvas.zoomToPoint({x:opt.e.offsetX,y:opt.e.offsetY},z);
+        opt.e.preventDefault(); opt.e.stopPropagation();
+    });
+
+    canvas.on('mouse:down',opt=>{
+        if(curMode==='pan'){
+            isPanning=true; canvas.selection=false;
+            lpx=opt.e.clientX; lpy=opt.e.clientY;
+            canvas.defaultCursor='grabbing';
+        } else if(curMode==='text'&&!opt.target){
+            const p=canvas.getPointer(opt.e);
+            addText(p.x,p.y);
+        } else if(curMode==='eraser'){
+            eraseAt(opt);
+        }
+    });
+
+    canvas.on('mouse:move',opt=>{
+        if(isPanning){
+            const v=canvas.viewportTransform;
+            v[4]+=opt.e.clientX-lpx; v[5]+=opt.e.clientY-lpy;
+            canvas.requestRenderAll();
+            lpx=opt.e.clientX; lpy=opt.e.clientY;
+        }
+        if(curMode==='eraser'&&opt.e.buttons===1) eraseAt(opt);
+        // Reposition sel-bar while dragging objects
+        if(opt.e.buttons===1&&curMode==='select'&&canvas.getActiveObject()){
+            showSelBar({selected:canvas.getActiveObjects()});
+        }
+    });
+
+    canvas.on('mouse:up',()=>{
+        isPanning=false;
+        if(curMode==='pan') canvas.defaultCursor='grab';
+        canvas.selection=(curMode==='select');
+    });
+
+    canvas.on('selection:created',handleSel);
+    canvas.on('selection:updated',handleSel);
+    canvas.on('selection:cleared',()=>{ document.getElementById('img-resize').classList.add('hidden'); hideSelBar(); renderLayers(); });
+    canvas.on('object:added',()=>{ if(!histLock){saveHist();renderLayers();} });
+    canvas.on('object:modified',()=>{ if(!histLock){saveHist();renderLayers();} if(canvas.getActiveObject()) showSelBar({selected:canvas.getActiveObjects()}); });
+    canvas.on('object:removed',()=>{ if(!histLock){saveHist();renderLayers();} });
+
+    // Right-click context menu on canvas
+    canvas.upperCanvasEl.addEventListener('contextmenu', function(e){
+        e.preventDefault();
+        e.stopPropagation();
+        showCanvasCtxMenu(e);
+    });
+}
+
+// ============ RIGHT-CLICK CONTEXT MENU ============
+let canvasCtxMenu = null;
+
+function showCanvasCtxMenu(e){
+    removeCanvasCtxMenu();
+    const hasClipboard = clipboard.length > 0;
+    const hasSelection = canvas.getActiveObjects().length > 0;
+    const pointer = canvas.getPointer(e);
+
+    const m = document.createElement('div');
+    m.id = 'canvas-ctx';
+    m.className = 'glass pe rounded-xl p-2';
+    if(isDark) m.classList.add('dk');
+    m.style.cssText = `position:fixed;left:${e.clientX}px;top:${e.clientY}px;z-index:9998;min-width:180px;font-family:Tajawal,sans-serif`;
+
+    m.innerHTML = `
+        ${hasClipboard ? `
+        <button onclick="pasteAtPoint(${pointer.x},${pointer.y})" class="ctx-item ctx-paste">
+            <i data-lucide="clipboard-paste" style="width:14px;height:14px"></i>
+            <span>لصق هنا</span>
+            <span class="ctx-hint">Ctrl+V</span>
+        </button>
+        <div class="ctx-sep"></div>` : ''}
+        ${hasSelection ? `
+        <button onclick="copySelected();removeCanvasCtxMenu()" class="ctx-item">
+            <i data-lucide="copy" style="width:14px;height:14px"></i>
+            <span>نسخ</span>
+            <span class="ctx-hint">Ctrl+C</span>
+        </button>
+        <button onclick="dupSelected();removeCanvasCtxMenu()" class="ctx-item">
+            <i data-lucide="copy-plus" style="width:14px;height:14px"></i>
+            <span>تكرار</span>
+            <span class="ctx-hint">Ctrl+D</span>
+        </button>
+        <div class="ctx-sep"></div>
+        <button onclick="delSelected();removeCanvasCtxMenu()" class="ctx-item ctx-red">
+            <i data-lucide="trash-2" style="width:14px;height:14px"></i>
+            <span>حذف</span>
+            <span class="ctx-hint">Delete</span>
+        </button>` : `
+        <div class="ctx-empty">انقر على عنصر لتحديده</div>
+        `}
+    `;
+
+    document.body.appendChild(m);
+    canvasCtxMenu = m;
+    lucide.createIcons();
+
+    // Auto-close when clicking OUTSIDE the menu
+    setTimeout(()=>{
+        function outsideClick(e){
+            const menu = document.getElementById('canvas-ctx');
+            if(menu && menu.contains(e.target)) return; // click was inside menu, ignore
+            removeCanvasCtxMenu();
+            document.removeEventListener('mousedown', outsideClick);
+        }
+        document.addEventListener('mousedown', outsideClick);
+    }, 60);
+}
+
+function removeCanvasCtxMenu(){
+    if(canvasCtxMenu){ canvasCtxMenu.remove(); canvasCtxMenu = null; }
+}
+
+function pasteAtPoint(x, y){
+    removeCanvasCtxMenu();
+    if(!clipboard.length) return;
+    clipboard[0].clone(cloned=>{
+        canvas.discardActiveObject();
+        const offsetX = x - (cloned.left || 0);
+        const offsetY = y - (cloned.top || 0);
+        if(cloned.type==='activeSelection'){
+            cloned.canvas = canvas;
+            cloned.forEachObject(obj=>{
+                obj.set({ left: obj.left + offsetX, top: obj.top + offsetY });
+                canvas.add(obj);
+            });
+            cloned.setCoords();
+        } else {
+            cloned.set({ left: x, top: y, layerName: cloned.layerName||'نسخة' });
+            canvas.add(cloned);
+        }
+        canvas.setActiveObject(cloned);
+        canvas.requestRenderAll();
+        saveHist();
+        showSelBar({selected: canvas.getActiveObjects()});
+    });
+}
+
+function handleSel(opt){
+    const obj=opt.selected&&opt.selected[0];
+    if(obj&&obj.type==='image'){
+        document.getElementById('img-resize').classList.remove('hidden');
+        document.getElementById('iw').value=Math.round(obj.width*obj.scaleX);
+        document.getElementById('ih').value=Math.round(obj.height*obj.scaleY);
+    } else { document.getElementById('img-resize').classList.add('hidden'); }
+    renderLayers();
+    showSelBar(opt);
+}
+
+function showSelBar(opt){
+    const bar=document.getElementById('sel-bar');
+    const objs=canvas.getActiveObjects();
+    if(!objs||!objs.length){ bar.classList.remove('show'); return; }
+    // Position bar above the selection bounding box
+    const sel=canvas.getActiveObject();
+    const bd=sel.getBoundingRect(true);
+    const vpt=canvas.viewportTransform;
+    // Smart positioning: above if space, below if near top
+    const screenX=(bd.left+bd.width/2)*vpt[0]+vpt[4];
+    const objTop=bd.top*vpt[3]+vpt[5];
+    const objBottom=(bd.top+bd.height)*vpt[3]+vpt[5];
+    const barH=48;
+    const toolbarH=72; // height of top toolbar area
+
+    let top;
+    if(objTop - barH - 8 > toolbarH){
+      top = objTop - barH - 8;       // enough space above
+    } else if(objBottom + barH + 8 < window.innerHeight - 60){
+      top = objBottom + 8;           // show below
+    } else {
+      top = toolbarH + 4;            // fallback: just below toolbar
+    }
+    bar.style.left=screenX+'px';
+    bar.style.top=top+'px';
+    // Set color picker to current fill
+    const firstObj=objs[0];
+    let fillColor='#3b82f6';
+    if(firstObj.fill&&typeof firstObj.fill==='string') fillColor=firstObj.fill;
+    else if(firstObj.stroke&&typeof firstObj.stroke==='string'&&firstObj.stroke!=='transparent') fillColor=firstObj.stroke;
+    document.getElementById('sel-clr').value=fillColor.startsWith('#')?fillColor:fillColor;
+    // Sync rotation input
+    const rotInp=document.getElementById('rot-input');
+    if(rotInp){
+        const activeObj=canvas.getActiveObject();
+        rotInp.value=Math.round((activeObj&&activeObj.angle)||0);
+        rotInp.style.background=isDark?'#1e293b':'#fff';
+        rotInp.style.color=isDark?'#e2e8f0':'#334155';
+        rotInp.style.borderColor=isDark?'#334155':'#e2e8f0';
+    }
+    // Apply dark theme
+    if(isDark){ bar.classList.add('dk'); } else { bar.classList.remove('dk'); }
+
+    // Sync hollow state
+    const hollowBtn=document.getElementById('sel-hollow-btn');
+    const hollowLbl=document.getElementById('sel-hollow-lbl');
+    const firstObj2=objs[0];
+    const isHollowNow=(firstObj2.fill==='transparent'||firstObj2.fill===''||!firstObj2.fill);
+    if(hollowBtn){ isHollowNow?hollowBtn.classList.add('on'):hollowBtn.classList.remove('on'); }
+    if(hollowLbl){ hollowLbl.textContent=isHollowNow?'مملوء':'مجوف'; }
+
+    // Sync gradient state
+    const gradBtn=document.getElementById('sel-grad-btn');
+    const clr2El=document.getElementById('sel-clr2');
+    const isGradNow=firstObj2.fill&&typeof firstObj2.fill==='object';
+    if(gradBtn){ isGradNow?gradBtn.classList.add('on'):gradBtn.classList.remove('on'); }
+    if(clr2El){ clr2El.style.display=isGradNow?'inline-block':'none'; }
+
+    bar.classList.add('show');
+}
+
+function hideSelBar(){
+    const bar=document.getElementById('sel-bar');
+    if(bar) bar.classList.remove('show');
+}
+
+function toggleSelHollow(){
+    const objs=canvas.getActiveObjects();
+    if(!objs.length) return;
+    const first=objs[0];
+    const isHollow=(first.fill==='transparent'||first.fill===''||!first.fill);
+    const newHollow=!isHollow;
+    objs.forEach(obj=>{
+        if(obj.type==='i-text') return;
+        if(newHollow){
+            const col=(obj.fill&&typeof obj.fill==='string'&&obj.fill!=='transparent')?obj.fill:(obj.stroke&&obj.stroke!=='transparent'?obj.stroke:clr1);
+            obj.set({fill:'transparent',stroke:col,strokeWidth:Math.max(2,sz/5)});
+        } else {
+            const col=(obj.stroke&&typeof obj.stroke==='string'&&obj.stroke!=='transparent')?obj.stroke:clr1;
+            obj.set({fill:col,stroke:'transparent',strokeWidth:0});
+        }
+    });
+    canvas.renderAll(); saveHist();
+    const lbl=document.getElementById('sel-hollow-lbl');
+    if(lbl) lbl.textContent=newHollow?'مملوء':'مجوف';
+    const btn=document.getElementById('sel-hollow-btn');
+    if(btn){ newHollow?btn.classList.add('on'):btn.classList.remove('on'); }
+}
+
+function toggleSelGradient(){
+    const objs=canvas.getActiveObjects();
+    if(!objs.length) return;
+    const btn=document.getElementById('sel-grad-btn');
+    const clr2El=document.getElementById('sel-clr2');
+    const isGradOn=btn&&btn.classList.contains('on');
+    if(!isGradOn){
+        btn&&btn.classList.add('on');
+        if(clr2El) clr2El.style.display='inline-block';
+        applySelGradient();
+    } else {
+        btn&&btn.classList.remove('on');
+        if(clr2El) clr2El.style.display='none';
+        const c=document.getElementById('sel-clr').value;
+        objs.forEach(obj=>{
+            if(obj.type==='i-text') obj.set('fill',c);
+            else if(obj.fill&&obj.fill!=='transparent') obj.set('fill',c);
+            else obj.set('stroke',c);
+        });
+        canvas.renderAll(); saveHist();
+    }
+}
+
+function applySelGradient(){
+    const objs=canvas.getActiveObjects();
+    if(!objs.length) return;
+    const c1=document.getElementById('sel-clr').value;
+    const c2El=document.getElementById('sel-clr2');
+    const c2=c2El?c2El.value:'#ec4899';
+    const grad=new fabric.Gradient({type:'linear',coords:{x1:0,y1:0,x2:100,y2:100},colorStops:[{offset:0,color:c1},{offset:1,color:c2}]});
+    objs.forEach(obj=>{
+        if(obj.type==='i-text') obj.set('fill',grad);
+        else if(obj.fill&&obj.fill!=='transparent') obj.set('fill',grad);
+    });
+    canvas.renderAll(); saveHist();
+}
+
+function rotateSelected(delta){
+    const objs=canvas.getActiveObjects();
+    if(!objs.length) return;
+    const active=canvas.getActiveObject();
+    const newAngle = ((active.angle||0) + delta + 360) % 360;
+    active.set('angle', newAngle);
+    active.setCoords();
+    canvas.renderAll();
+    saveHist();
+    // Update input
+    const inp=document.getElementById('rot-input');
+    if(inp) inp.value = Math.round(newAngle);
+}
+
+function setRotation(angle){
+    const objs=canvas.getActiveObjects();
+    if(!objs.length) return;
+    const active=canvas.getActiveObject();
+    const normalized = ((angle % 360) + 360) % 360;
+    active.set('angle', normalized);
+    active.setCoords();
+    canvas.renderAll();
+    saveHist();
+}
+
+function applySelColor(color){
+    const objs=canvas.getActiveObjects();
+    objs.forEach(obj=>{
+        if(obj.type==='i-text'){ obj.set('fill',color); }
+        else if(obj.fill&&obj.fill!=='transparent'){ obj.set('fill',color); }
+        else if(obj.stroke&&obj.stroke!=='transparent'){ obj.set('stroke',color); }
+        else { obj.set('fill',color); }
+    });
+    canvas.renderAll(); saveHist();
+}
+
+// ============ ERASER ============
+let erasedSet=new Set();
+document.addEventListener('mouseup',()=>erasedSet.clear());
+
+function eraseAt(opt){
+    const p=canvas.getPointer(opt.e), r=sz;
+    canvas.getObjects().filter(obj=>{
+        if(obj.type==='activeSelection') return false;
+        const bd=obj.getBoundingRect(true);
+        return p.x>=bd.left-r&&p.x<=bd.left+bd.width+r&&p.y>=bd.top-r&&p.y<=bd.top+bd.height+r;
+    }).forEach(obj=>{
+        const uid=obj.__uid||(obj.__uid=Math.random().toString(36));
+        if(!erasedSet.has(uid)){ erasedSet.add(uid); canvas.remove(obj); }
+    });
+    canvas.renderAll();
+}
+
+let eDot=null;
+document.addEventListener('mousemove',e=>{
+    if(curMode==='eraser'&&canvas){
+        if(!eDot){
+            eDot=document.createElement('div');
+            eDot.style.cssText='position:fixed;border-radius:50%;border:2px solid #ef4444;pointer-events:none;z-index:9999;transform:translate(-50%,-50%);background:rgba(239,68,68,0.12);transition:width .08s,height .08s';
+            document.body.appendChild(eDot);
+        }
+        const s=sz*2;
+        Object.assign(eDot.style,{width:s+'px',height:s+'px',left:e.clientX+'px',top:e.clientY+'px',display:'block'});
+    } else if(eDot){ eDot.style.display='none'; }
+});
+
+// ============ MODES ============
+function setMode(m){
+    curMode=m;
+    canvas.isDrawingMode=false;
+    canvas.selection=false;
+    canvas.defaultCursor='default';
+    ['sel','pan','draw','text','eraser'].forEach(id=>{ const el=document.getElementById('b-'+id); if(el) el.classList.remove('on'); });
+    const map={select:'sel',pan:'pan',draw:'draw',text:'text',eraser:'eraser'};
+    if(map[m]){ const el=document.getElementById('b-'+map[m]); if(el) el.classList.add('on'); }
+    if(m==='select'){
+        canvas.selection=true;
+        canvas.forEachObject(o=>{o.selectable=true;o.evented=true;});
+    } else if(m==='pan'){ canvas.defaultCursor='grab';
+    } else if(m==='draw'){ canvas.isDrawingMode=true; setupBrush();
+    } else if(m==='text'){
+        canvas.defaultCursor='crosshair';
+        canvas.forEachObject(o=>{o.selectable=false;o.evented=false;});
+    } else if(m==='eraser'){ canvas.defaultCursor='none'; }
+    // Hide sel-bar when not in select mode
+    if(m!=='select') hideSelBar();
+}
+
+// ============ COLORS ============
+function updateColors(){
+    clr1=document.getElementById('c1').value;
+    clr2=document.getElementById('c2').value;
+    useGrad=document.getElementById('chk-grad').checked;
+    hollow=document.getElementById('chk-hol').checked;
+    if(curMode==='draw') setupBrush();
+    const a=canvas&&canvas.getActiveObject();
+    if(a&&a.type!=='image'){
+        if(a.type==='i-text') a.set('fill',getFill());
+        else applyStyle(a);
+        canvas.renderAll(); saveHist();
+    }
+}
+
+function updateSize(v){
+    sz=parseInt(v);
+    document.getElementById('sz-val').innerText=sz+'px';
+    if(curMode==='draw') setupBrush();
+    const a=canvas&&canvas.getActiveObject();
+    if(a){
+        if(a.type==='i-text') a.set('fontSize',sz);
+        else if(a.type==='path') a.set('strokeWidth',sz);
+        else if(hollow) a.set('strokeWidth',Math.max(2,sz/5));
+        canvas.renderAll(); saveHist();
+    }
+}
+
+function getFill(){
+    if(!useGrad) return clr1;
+    return new fabric.Gradient({type:'linear',coords:{x1:0,y1:0,x2:100,y2:100},colorStops:[{offset:0,color:clr1},{offset:1,color:clr2}]});
+}
+
+function applyStyle(obj){
+    if(hollow){ obj.set({fill:'transparent',stroke:clr1,strokeWidth:Math.max(2,sz/5)}); }
+    else { obj.set({fill:getFill(),stroke:'transparent',strokeWidth:0}); }
+}
+
+function setupBrush(){
+    canvas.freeDrawingBrush=new fabric.PencilBrush(canvas);
+    canvas.freeDrawingBrush.color=clr1;
+    canvas.freeDrawingBrush.width=sz;
+}
+
+// ============ ACTIONS ============
+function delSelected(){
+    if(!canvas) return;
+    const objs=canvas.getActiveObjects();
+    if(objs.length){ canvas.discardActiveObject(); objs.forEach(o=>canvas.remove(o)); }
+}
+
+// ============ COPY / PASTE ============
+let clipboard = [];
+
+function copySelected(){
+    const objs=canvas.getActiveObjects();
+    if(!objs.length) return;
+    clipboard=[];
+    canvas.getActiveObject().clone(cloned=>{
+        clipboard=[cloned];
+    });
+}
+
+function pasteClipboard(){
+    if(!clipboard.length) return;
+    clipboard[0].clone(cloned=>{
+        canvas.discardActiveObject();
+        if(cloned.type==='activeSelection'){
+            cloned.canvas=canvas;
+            cloned.forEachObject(obj=>{ obj.set({left:obj.left+20,top:obj.top+20}); canvas.add(obj); });
+            cloned.setCoords();
+        } else {
+            cloned.set({left:cloned.left+20,top:cloned.top+20,layerName:cloned.layerName||'نسخة'});
+            canvas.add(cloned);
+        }
+        canvas.setActiveObject(cloned);
+        canvas.requestRenderAll();
+        saveHist();
+        showSelBar({selected:canvas.getActiveObjects()});
+    });
+}
+
+function dupSelected(){
+    copySelected();
+    setTimeout(pasteClipboard, 30);
+}
+
+window.addEventListener('keydown',e=>{
+    if(!canvas) return;
+    const a=canvas.getActiveObject();
+    if(e.key==='Delete'||e.key==='Backspace'){
+        if(a&&a.isEditing) return;
+        delSelected();
+    }
+    if(e.ctrlKey&&e.key==='z'){e.preventDefault();undo();}
+    if(e.ctrlKey&&e.key==='y'){e.preventDefault();redo();}
+    if(e.ctrlKey&&e.key==='c'){
+        if(a&&a.isEditing) return;
+        e.preventDefault(); copySelected();
+    }
+    if(e.ctrlKey&&e.key==='v'){
+        if(a&&a.isEditing) return;
+        e.preventDefault(); pasteClipboard();
+    }
+    if(e.ctrlKey&&e.key==='d'){
+        if(a&&a.isEditing) return;
+        e.preventDefault(); dupSelected();
+    }
+});
+
+function addText(x,y){
+    canvas.forEachObject(o=>{o.selectable=true;o.evented=true;});
+    canvas.selection=true;
+    const t=new fabric.IText('نص جديد',{
+        left:x,top:y,fontFamily:'Tajawal',fill:getFill(),
+        fontSize:sz>10?sz:40,direction:'rtl',originX:'left',originY:'top',layerName:'نص'
+    });
+    canvas.add(t);
+    canvas.setActiveObject(t);
+    t.enterEditing(); t.selectAll();
+    t.on('editing:exited',()=>setMode('select'));
+}
+
+// ============ SHAPES ============
+function addShape(type){
+    let obj;
+    const v=canvas.viewportTransform;
+    const cx=(canvas.width/2-v[4])/v[0];
+    const cy=(canvas.height/2-v[5])/v[3];
+    const d=100;
+    const b={left:cx,top:cy,originX:'center',originY:'center',strokeUniform:true,layerName:type};
+
+    switch(type){
+        case 'line': obj=new fabric.Line([-d,0,d,0],{...b,stroke:clr1,strokeWidth:Math.max(2,sz/5),fill:'transparent'}); break;
+        case 'line-ar': obj=new fabric.Path(`M -${d} 0 L ${d} 0 M ${d-20} -20 L ${d} 0 L ${d-20} 20`,{...b,fill:'transparent',stroke:clr1,strokeWidth:Math.max(2,sz/5)}); break;
+        case 'line-al': obj=new fabric.Path(`M ${d} 0 L -${d} 0 M ${-d+20} -20 L -${d} 0 L ${-d+20} 20`,{...b,fill:'transparent',stroke:clr1,strokeWidth:Math.max(2,sz/5)}); break;
+        case 'line-ab': obj=new fabric.Path(`M -${d} 0 L ${d} 0 M ${d-20} -20 L ${d} 0 L ${d-20} 20 M ${-d+20} -20 L -${d} 0 L ${-d+20} 20`,{...b,fill:'transparent',stroke:clr1,strokeWidth:Math.max(2,sz/5)}); break;
+        case 'triangle': obj=new fabric.Triangle({...b,width:d,height:d}); applyStyle(obj); break;
+        case 'square': obj=new fabric.Rect({...b,width:d,height:d}); applyStyle(obj); break;
+        case 'rect': obj=new fabric.Rect({...b,width:d*2,height:d}); applyStyle(obj); break;
+        case 'circle': obj=new fabric.Circle({...b,radius:d/2}); applyStyle(obj); break;
+        case 'ellipse': obj=new fabric.Ellipse({...b,rx:d,ry:d/2}); applyStyle(obj); break;
+        case 'semi': obj=new fabric.Path(`M -${d} 0 A ${d} ${d} 0 0 1 ${d} 0 Z`,{...b}); applyStyle(obj); break;
+        case 'para': obj=new fabric.Polygon([{x:30,y:0},{x:130,y:0},{x:100,y:70},{x:0,y:70}],{...b}); applyStyle(obj); break;
+        case 'rhombus': obj=new fabric.Polygon([{x:50,y:0},{x:100,y:50},{x:50,y:100},{x:0,y:50}],{...b}); applyStyle(obj); break;
+        case 'trap': obj=new fabric.Polygon([{x:30,y:0},{x:70,y:0},{x:100,y:70},{x:0,y:70}],{...b}); applyStyle(obj); break;
+        case 'pent': obj=ngon(5,d,b); break;
+        case 'hex': obj=ngon(6,d,b); break;
+        case 'oct': obj=ngon(8,d,b); break;
+        case 'cube': obj=new fabric.Path(`M 0 -50 L 86 0 L 86 100 L 0 150 L -86 100 L -86 0 Z M 0 -50 L 0 50 M -86 0 L 0 50 L 86 0 M 0 50 L 0 150`,{...b,fill:'transparent',stroke:clr1,strokeWidth:2,scaleX:.8,scaleY:.8}); break;
+        case 'cylinder': obj=new fabric.Path(`M -50 -50 C -50 -70,50 -70,50 -50 L 50 50 C 50 70,-50 70,-50 50 Z M -50 -50 C -50 -30,50 -30,50 -50`,{...b,fill:'transparent',stroke:clr1,strokeWidth:2,scaleX:1.5,scaleY:1.5}); break;
+        case 'cone': obj=new fabric.Path(`M 0 -80 L -50 50 C -50 70,50 70,50 50 Z M -50 50 C -50 30,50 30,50 50`,{...b,fill:'transparent',stroke:clr1,strokeWidth:2,scaleX:1.5,scaleY:1.5}); break;
+        case 'pyramid': obj=new fabric.Path(`M 0 -80 L -60 40 L 0 80 L 60 40 Z M 0 -80 L 0 80`,{...b,fill:'transparent',stroke:clr1,strokeWidth:2,scaleX:1.5,scaleY:1.5}); break;
+        case 'sphere':
+            obj=new fabric.Circle({...b,radius:d});
+            obj.set('fill',new fabric.Gradient({type:'radial',coords:{r1:0,r2:d,x1:-d/3,y1:-d/3,x2:0,y2:0},colorStops:[{offset:0,color:'#fff'},{offset:1,color:clr1}]}));
+            break;
+    }
+    if(obj){ canvas.add(obj); canvas.setActiveObject(obj); setMode('select'); }
+}
+
+function ngon(sides,r,base){
+    const pts=[];
+    for(let i=0;i<sides;i++){
+        const a=(i/sides)*2*Math.PI-Math.PI/2;
+        pts.push({x:r*Math.cos(a),y:r*Math.sin(a)});
+    }
+    const p=new fabric.Polygon(pts,{...base}); applyStyle(p); return p;
+}
+
+// ============ IMAGES ============
+function doImgUpload(e){
+    const f=e.target.files[0]; if(!f) return;
+    const rd=new FileReader();
+    rd.onload=ev=>{
+        fabric.Image.fromURL(ev.target.result,img=>{
+            if(img.width>window.innerWidth/2) img.scaleToWidth(window.innerWidth/2);
+            const v=canvas.viewportTransform;
+            img.set({left:(canvas.width/2-v[4])/v[0],top:(canvas.height/2-v[5])/v[3],originX:'center',originY:'center',layerName:'صورة'});
+            canvas.add(img); canvas.setActiveObject(img); setMode('select');
+        });
+    };
+    rd.readAsDataURL(f);
+}
+
+function doBgUpload(e){
+    const f=e.target.files[0]; if(!f) return;
+    const rd=new FileReader();
+    rd.onload=ev=>{
+        fabric.Image.fromURL(ev.target.result,img=>{
+            canvas.setBackgroundImage(img,canvas.renderAll.bind(canvas),{scaleX:canvas.width/img.width,scaleY:canvas.height/img.height});
+            saveHist();
+        });
+    };
+    rd.readAsDataURL(f);
+}
+
+function clearBg(){
+    canvas.setBackgroundImage(null,canvas.renderAll.bind(canvas));
+    canvas.backgroundColor=isDark?'#000':'#fff';
+    canvas.renderAll(); saveHist();
+}
+
+function resizeImg(){
+    const obj=canvas.getActiveObject();
+    if(!obj||obj.type!=='image') return;
+    const w=parseFloat(document.getElementById('iw').value);
+    const h=parseFloat(document.getElementById('ih').value);
+    if(w&&h){ obj.scaleX=w/obj.width; obj.scaleY=h/obj.height; canvas.renderAll(); saveHist(); }
+}
+
+// ============ HISTORY ============
+function resetHist(){
+    hist=[canvas.toJSON(['layerName'])]; hIdx=0;
+}
+
+function saveHist(){
+    if(histLock) return;
+    if(hIdx<hist.length-1) hist=hist.slice(0,hIdx+1);
+    hist.push(canvas.toJSON(['layerName']));
+    if(hist.length>30) hist.shift(); else hIdx++;
+}
+
+function undo(){
+    if(hIdx>0){
+        histLock=true; hIdx--;
+        canvas.loadFromJSON(hist[hIdx],()=>{ canvas.renderAll(); histLock=false; renderLayers(); });
+    }
+}
+
+function redo(){
+    if(hIdx<hist.length-1){
+        histLock=true; hIdx++;
+        canvas.loadFromJSON(hist[hIdx],()=>{ canvas.renderAll(); histLock=false; renderLayers(); });
+    }
+}
+
+// ============ LAYERS ============
+function toggleLayers(){
+    layVisible=!layVisible;
+    const panel=document.getElementById('lay-panel');
+    const btn=document.getElementById('b-layers');
+    if(layVisible){
+        panel.classList.remove('panel-hidden');
+        btn.classList.add('on');
+        renderLayers();
+    } else {
+        panel.classList.add('panel-hidden');
+        btn.classList.remove('on');
+    }
+}
+
+function getIcon(obj){
+    const t=obj.type;
+    if(t==='i-text'||t==='text') return '📝';
+    if(t==='image') return '🖼️';
+    if(t==='path') return '✏️';
+    if(t==='circle') return '⭕';
+    if(t==='rect') return '▭';
+    if(t==='triangle') return '△';
+    if(t==='ellipse') return '⬯';
+    if(t==='polygon') return '⬡';
+    if(t==='line') return '—';
+    return '◻';
+}
+
+function getLName(obj,idx){
+    if(obj.layerName) return obj.layerName;
+    const t=obj.type;
+    if(t==='i-text') return 'نص';
+    if(t==='image') return 'صورة';
+    if(t==='path') return 'رسم';
+    if(t==='circle') return 'دائرة';
+    if(t==='rect') return 'مستطيل';
+    if(t==='triangle') return 'مثلث';
+    if(t==='ellipse') return 'بيضوي';
+    if(t==='polygon') return 'شكل';
+    return 'عنصر '+(idx+1);
+}
+
+function renderLayers(){
+    if(!layVisible||!canvas) return;
+    const list=document.getElementById('lay-list');
+    const objs=canvas.getObjects();
+    const actives=canvas.getActiveObjects();
+    list.innerHTML='';
+
+    [...objs].reverse().forEach((obj,ri)=>{
+        const real=objs.length-1-ri;
+        const isSel=actives.includes(obj);
+        const isHid=obj.visible===false;
+        const item=document.createElement('div');
+        item.className='li'+(isSel?' sel':'');
+
+        const tb=isDark?'#1e293b':'#f1f5f9';
+        const nc=isDark?'#e2e8f0':'#334155';
+
+        item.innerHTML=`
+            <div class="lthumb" style="background:${tb}">${getIcon(obj)}</div>
+            <span style="flex:1;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:${nc}">${getLName(obj,real)}</span>
+            <button class="vis-btn" style="opacity:${isHid?1:0.45};padding:3px;border-radius:4px;line-height:0;background:none;border:none;cursor:pointer" title="${isHid?'إظهار':'إخفاء'}">
+                <i data-lucide="${isHid?'eye-off':'eye'}" style="width:12px;height:12px;color:${isDark?'#94a3b8':'#64748b'}"></i>
+            </button>`;
+
+        item.addEventListener('click',ev=>{
+            if(ev.target.closest('.vis-btn')) return;
+            setMode('select');
+            canvas.setActiveObject(obj);
+            canvas.requestRenderAll();
+            renderLayers();
+        });
+
+        item.querySelector('.vis-btn').addEventListener('click',ev=>{
+            ev.stopPropagation();
+            obj.visible=!obj.visible;
+            canvas.renderAll();
+            renderLayers();
+            saveHist();
+        });
+
+        list.appendChild(item);
+    });
+
+    lucide.createIcons();
+}
+
+function layUp(){ const a=canvas&&canvas.getActiveObject(); if(!a) return; canvas.bringForward(a); canvas.renderAll(); renderLayers(); saveHist(); }
+function layDown(){ const a=canvas&&canvas.getActiveObject(); if(!a) return; canvas.sendBackwards(a); canvas.renderAll(); renderLayers(); saveHist(); }
+
+// ============ UI TOGGLE ============
+function toggleUI(){
+    uiOn=!uiOn;
+    const panels=['toolbar','side-p','lay-panel','pages-bar'];
+    panels.forEach(id=>{
+        const el=document.getElementById(id);
+        if(!el) return;
+        uiOn?el.classList.remove('panel-hidden'):el.classList.add('panel-hidden');
+    });
+    const sb=document.getElementById('show-ui-btn');
+    if(uiOn){ sb.style.display='none'; }
+    else { sb.style.display='flex'; }
+}
+
+// ============ EXPORT ============
+function exportPNG(){
+    const a=document.createElement('a');
+    a.download='board.png'; a.href=canvas.toDataURL({format:'png',quality:1}); a.click();
+}
+function exportPDF(){
+    const data=canvas.toDataURL({format:'png',quality:1});
+    const pdf=new jspdf.jsPDF({orientation:canvas.width>canvas.height?'landscape':'portrait',unit:'px',format:[canvas.width,canvas.height]});
+    pdf.addImage(data,'PNG',0,0,canvas.width,canvas.height);
+    pdf.save('board.pdf');
+}
+
+window.onload=initApp;
+</script>
+</body>
+</html>
