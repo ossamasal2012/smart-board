@@ -1335,15 +1335,60 @@ function toggleUI(){
 }
 
 // ============ EXPORT ============
-function exportPNG(){
-    const a=document.createElement('a');
-    a.download='board.png'; a.href=canvas.toDataURL({format:'png',quality:1}); a.click();
+async function exportPNG() {
+    const dataUrl = canvas.toDataURL({format: 'png', quality: 1});
+    
+    // التحقق هل نحن داخل تطبيق أندرويد (Capacitor)
+    if (window.Capacitor && window.Capacitor.isNativePlatform()) {
+        const { Filesystem } = Capacitor.Plugins;
+        const { Share } = Capacitor.Plugins;
+        try {
+            const fileName = `board_${Date.now()}.png`;
+            const result = await Filesystem.writeFile({
+                path: fileName,
+                data: dataUrl,
+                directory: 'CACHE' // نستخدم الذاكرة المؤقتة للمشاركة السريعة
+            });
+            await Share.share({ title: 'حفظ الصورة', url: result.uri });
+        } catch (e) { alert("خطأ في الحفظ: " + e); }
+    } else {
+        // الكود الأصلي للمتصفح
+        const a = document.createElement('a');
+        a.download = 'board.png';
+        a.href = dataUrl;
+        a.click();
+    }
 }
-function exportPDF(){
-    const data=canvas.toDataURL({format:'png',quality:1});
-    const pdf=new jspdf.jsPDF({orientation:canvas.width>canvas.height?'landscape':'portrait',unit:'px',format:[canvas.width,canvas.height]});
-    pdf.addImage(data,'PNG',0,0,canvas.width,canvas.height);
-    pdf.save('board.pdf');
+
+async function exportPDF() {
+    const data = canvas.toDataURL({format: 'png', quality: 1});
+    const orientation = canvas.width > canvas.height ? 'landscape' : 'portrait';
+    const pdf = new jspdf.jsPDF({
+        orientation: orientation,
+        unit: 'px',
+        format: [canvas.width, canvas.height]
+    });
+    pdf.addImage(data, 'PNG', 0, 0, canvas.width, canvas.height);
+
+    if (window.Capacitor && window.Capacitor.isNativePlatform()) {
+        const { Filesystem } = Capacitor.Plugins;
+        const { Share } = Capacitor.Plugins;
+        try {
+            // تحويل الـ PDF إلى Base64
+            const pdfBase64 = pdf.output('datauristring').split(',')[1];
+            const fileName = `board_${Date.now()}.pdf`;
+            const result = await Filesystem.writeFile({
+                path: fileName,
+                data: pdfBase64,
+                directory: 'CACHE'
+            });
+            await Share.share({ title: 'حفظ PDF', url: result.uri });
+        } catch (e) { alert("خطأ في حفظ PDF: " + e); }
+    } else {
+        // الكود الأصلي للمتصفح
+        pdf.save('board.pdf');
+    }
+}
 }
 
 window.onload=initApp;
