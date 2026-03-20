@@ -1,5 +1,4 @@
 name: Build Infinite Whiteboard APK
-
 on:
   push:
     branches: [ main ]
@@ -8,18 +7,17 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Java 17
+      - name: Java Setup
         uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Setup Node.js
+      - name: Node Setup
         uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -27,10 +25,8 @@ jobs:
       - name: Create project files
         run: |
           mkdir -p src
-          # نسخ ملف الـ HTML الخاص بك ليصبح index.html داخل مجلد العمل
-          cp index.html src/index.html || echo "Warning: No HTML file found!"
+          cp *.html src/index.html || echo "No html found"
           
-          # إنشاء package.json مع أحدث إصدارات Capacitor لضمان التوافق
           cat > package.json << 'EOF'
           {
             "name": "infinite.whiteboard.ossama",
@@ -46,40 +42,28 @@ jobs:
             }
           }
           EOF
-
-          # إعدادات التطبيق (الاسم والهوية واللون الخلفي)
+          
           cat > capacitor.config.json << 'EOF'
           {
             "appId": "com.ossama.whiteboard",
             "appName": "السبورة الذكية",
             "webDir": "src",
-            "android": {
-              "backgroundColor": "#000000"
-            }
+            "android": { "backgroundColor": "#000000" }
           }
           EOF
 
       - name: Install dependencies
         run: npm install --legacy-peer-deps
 
-      - name: Initialize Capacitor Android
+      - name: Initialize Android
         run: |
           npx cap add android
           npx cap sync android
 
-      - name: Add Android Permissions
+      - name: Add Permissions
         run: |
-          # إضافة أذونات التخزين لملف AndroidManifest لضمان قدرة التطبيق على حفظ الصور
           sed -i '/<application/i \    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />' android/app/src/main/AndroidManifest.xml
           sed -i '/<application/i \    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />' android/app/src/main/AndroidManifest.xml
-
-      - name: Set App Icon
-        run: |
-          mkdir -p assets
-          # أيقونة افتراضية، يمكنك تغيير الرابط لاحقاً لأيقونتك الخاصة
-          curl -L "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQtqcg6zsweD4gOxtyqyKZ5SKHzlNr4NZu8_A&s" -o assets/icon.png
-          npm install -g @capacitor/assets
-          npx capacitor-assets generate --android
 
       - name: Build APK
         run: |
@@ -87,9 +71,8 @@ jobs:
           chmod +x gradlew
           ./gradlew assembleDebug --no-daemon
 
-      - name: Upload APK Artifact
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: Whiteboard-APK
           path: android/app/build/outputs/apk/debug/app-debug.apk
-          retention-days: 30
