@@ -650,7 +650,6 @@ function setupEvents(){
             lpx=opt.e.clientX; lpy=opt.e.clientY;
         }
         if(curMode==='eraser'&&opt.e.buttons===1) eraseAt(opt);
-        // Reposition sel-bar while dragging objects
         if(opt.e.buttons===1&&curMode==='select'&&canvas.getActiveObject()){
             showSelBar({selected:canvas.getActiveObjects()});
         }
@@ -669,7 +668,6 @@ function setupEvents(){
     canvas.on('object:modified',()=>{ if(!histLock){saveHist();renderLayers();} if(canvas.getActiveObject()) showSelBar({selected:canvas.getActiveObjects()}); });
     canvas.on('object:removed',()=>{ if(!histLock){saveHist();renderLayers();} });
 
-    // Right-click context menu on canvas
     canvas.upperCanvasEl.addEventListener('contextmenu', function(e){
         e.preventDefault();
         e.stopPropagation();
@@ -725,11 +723,10 @@ function showCanvasCtxMenu(e){
     canvasCtxMenu = m;
     lucide.createIcons();
 
-    // Auto-close when clicking OUTSIDE the menu
     setTimeout(()=>{
         function outsideClick(e){
             const menu = document.getElementById('canvas-ctx');
-            if(menu && menu.contains(e.target)) return; // click was inside menu, ignore
+            if(menu && menu.contains(e.target)) return;
             removeCanvasCtxMenu();
             document.removeEventListener('mousedown', outsideClick);
         }
@@ -781,34 +778,30 @@ function showSelBar(opt){
     const bar=document.getElementById('sel-bar');
     const objs=canvas.getActiveObjects();
     if(!objs||!objs.length){ bar.classList.remove('show'); return; }
-    // Position bar above the selection bounding box
     const sel=canvas.getActiveObject();
     const bd=sel.getBoundingRect(true);
     const vpt=canvas.viewportTransform;
-    // Smart positioning: above if space, below if near top
     const screenX=(bd.left+bd.width/2)*vpt[0]+vpt[4];
     const objTop=bd.top*vpt[3]+vpt[5];
     const objBottom=(bd.top+bd.height)*vpt[3]+vpt[5];
     const barH=48;
-    const toolbarH=72; // height of top toolbar area
+    const toolbarH=72;
 
     let top;
     if(objTop - barH - 8 > toolbarH){
-      top = objTop - barH - 8;       // enough space above
+      top = objTop - barH - 8;
     } else if(objBottom + barH + 8 < window.innerHeight - 60){
-      top = objBottom + 8;           // show below
+      top = objBottom + 8;
     } else {
-      top = toolbarH + 4;            // fallback: just below toolbar
+      top = toolbarH + 4;
     }
     bar.style.left=screenX+'px';
     bar.style.top=top+'px';
-    // Set color picker to current fill
     const firstObj=objs[0];
     let fillColor='#3b82f6';
     if(firstObj.fill&&typeof firstObj.fill==='string') fillColor=firstObj.fill;
     else if(firstObj.stroke&&typeof firstObj.stroke==='string'&&firstObj.stroke!=='transparent') fillColor=firstObj.stroke;
     document.getElementById('sel-clr').value=fillColor.startsWith('#')?fillColor:fillColor;
-    // Sync rotation input
     const rotInp=document.getElementById('rot-input');
     if(rotInp){
         const activeObj=canvas.getActiveObject();
@@ -817,10 +810,8 @@ function showSelBar(opt){
         rotInp.style.color=isDark?'#e2e8f0':'#334155';
         rotInp.style.borderColor=isDark?'#334155':'#e2e8f0';
     }
-    // Apply dark theme
     if(isDark){ bar.classList.add('dk'); } else { bar.classList.remove('dk'); }
 
-    // Sync hollow state
     const hollowBtn=document.getElementById('sel-hollow-btn');
     const hollowLbl=document.getElementById('sel-hollow-lbl');
     const firstObj2=objs[0];
@@ -828,7 +819,6 @@ function showSelBar(opt){
     if(hollowBtn){ isHollowNow?hollowBtn.classList.add('on'):hollowBtn.classList.remove('on'); }
     if(hollowLbl){ hollowLbl.textContent=isHollowNow?'مملوء':'مجوف'; }
 
-    // Sync gradient state
     const gradBtn=document.getElementById('sel-grad-btn');
     const clr2El=document.getElementById('sel-clr2');
     const isGradNow=firstObj2.fill&&typeof firstObj2.fill==='object';
@@ -912,7 +902,6 @@ function rotateSelected(delta){
     active.setCoords();
     canvas.renderAll();
     saveHist();
-    // Update input
     const inp=document.getElementById('rot-input');
     if(inp) inp.value = Math.round(newAngle);
 }
@@ -987,7 +976,6 @@ function setMode(m){
         canvas.defaultCursor='crosshair';
         canvas.forEachObject(o=>{o.selectable=false;o.evented=false;});
     } else if(m==='eraser'){ canvas.defaultCursor='none'; }
-    // Hide sel-bar when not in select mode
     if(m!=='select') hideSelBar();
 }
 
@@ -1334,31 +1322,50 @@ function toggleUI(){
     else { sb.style.display='flex'; }
 }
 
-// ============ EXPORT ============
-async function exportPNG() {
-    const dataUrl = canvas.toDataURL({format: 'png', quality: 1});
-    
-    if (window.Capacitor && window.Capacitor.isNativePlatform()) {
-        try {
-            const { Filesystem, Share } = Capacitor.Plugins;
-            const fileName = `board_${Date.now()}.png`;
-            const result = await Filesystem.writeFile({
-                path: fileName,
-                data: dataUrl,
-                directory: 'CACHE'
-            });
-            await Share.share({ title: 'حفظ الصورة', url: result.uri });
-        } catch (e) { alert("خطأ في الحفظ: " + e); }
+// ============ EXPORT - يفتح الملف في تبويب المتصفح للتنزيل التلقائي ============
+
+function exportPNG() {
+    const dataUrl = canvas.toDataURL({ format: 'png', quality: 1 });
+    // فتح الصورة في تبويب جديد - المتصفح سيعرضها أو يحملها تلقائياً
+    const newTab = window.open();
+    if (newTab) {
+        newTab.document.write(`
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="UTF-8">
+                <title>تحميل الصورة</title>
+                <style>
+                    body { margin:0; background:#1a1a2e; display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:100vh; font-family:Arial,sans-serif; color:#fff; }
+                    img { max-width:90vw; max-height:70vh; border-radius:12px; box-shadow:0 8px 32px rgba(0,0,0,0.5); }
+                    .btn { margin-top:20px; background:#3b82f6; color:#fff; border:none; padding:12px 28px; border-radius:10px; font-size:16px; cursor:pointer; text-decoration:none; display:inline-block; }
+                    .btn:hover { background:#2563eb; }
+                    p { margin-bottom:12px; opacity:0.7; font-size:14px; }
+                </style>
+            </head>
+            <body>
+                <p>اضغط على الزر لتحميل الصورة أو اضغط بزر الماوس الأيمن على الصورة واختر "حفظ"</p>
+                <img src="${dataUrl}" alt="السبورة">
+                <br>
+                <a class="btn" href="${dataUrl}" download="board.png">⬇ تحميل PNG</a>
+            </body>
+            </html>
+        `);
+        newTab.document.close();
     } else {
+        // في حال منع النوافذ المنبثقة - استخدام رابط مباشر
         const a = document.createElement('a');
-        a.download = 'board.png';
         a.href = dataUrl;
+        a.target = '_blank';
+        a.rel = 'noopener';
+        document.body.appendChild(a);
         a.click();
+        document.body.removeChild(a);
     }
 }
 
-async function exportPDF() {
-    const data = canvas.toDataURL({format: 'png', quality: 1});
+function exportPDF() {
+    const data = canvas.toDataURL({ format: 'png', quality: 1 });
     const orientation = canvas.width > canvas.height ? 'landscape' : 'portrait';
     const pdf = new jspdf.jsPDF({
         orientation: orientation,
@@ -1367,20 +1374,52 @@ async function exportPDF() {
     });
     pdf.addImage(data, 'PNG', 0, 0, canvas.width, canvas.height);
 
-    if (window.Capacitor && window.Capacitor.isNativePlatform()) {
-        try {
-            const { Filesystem, Share } = Capacitor.Plugins;
-            const pdfBase64 = pdf.output('datauristring').split(',')[1];
-            const fileName = `board_${Date.now()}.pdf`;
-            const result = await Filesystem.writeFile({
-                path: fileName,
-                data: pdfBase64,
-                directory: 'CACHE'
-            });
-            await Share.share({ title: 'حفظ PDF', url: result.uri });
-        } catch (e) { alert("خطأ في حفظ PDF: " + e); }
+    // الحصول على بيانات PDF كـ blob URL وفتحه في تبويب جديد
+    const pdfBlob = pdf.output('blob');
+    const blobUrl = URL.createObjectURL(pdfBlob);
+
+    const newTab = window.open();
+    if (newTab) {
+        newTab.document.write(`
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="UTF-8">
+                <title>تحميل PDF</title>
+                <style>
+                    body { margin:0; background:#1a1a2e; display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:100vh; font-family:Arial,sans-serif; color:#fff; }
+                    .btn { background:#ef4444; color:#fff; border:none; padding:14px 32px; border-radius:10px; font-size:18px; cursor:pointer; text-decoration:none; display:inline-block; margin:8px; }
+                    .btn2 { background:#3b82f6; }
+                    .btn:hover { opacity:0.85; }
+                    p { margin-bottom:16px; opacity:0.7; font-size:14px; }
+                    h2 { margin-bottom:8px; }
+                </style>
+            </head>
+            <body>
+                <h2>📄 ملف PDF جاهز</h2>
+                <p>اضغط على زر التحميل لحفظ الملف على جهازك</p>
+                <a class="btn" href="${blobUrl}" download="board.pdf">⬇ تحميل PDF</a>
+                <a class="btn btn2" href="${blobUrl}" target="_blank">👁 فتح PDF</a>
+                <script>
+                    // تنظيف الـ blob URL بعد 5 دقائق
+                    setTimeout(() => URL.revokeObjectURL('${blobUrl}'), 300000);
+                <\/script>
+            </body>
+            </html>
+        `);
+        newTab.document.close();
     } else {
-        pdf.save('board.pdf');
+        // في حال منع النوافذ المنبثقة
+        const a = document.createElement('a');
+        a.href = blobUrl;
+        a.target = '_blank';
+        a.rel = 'noopener';
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => {
+            document.body.removeChild(a);
+            URL.revokeObjectURL(blobUrl);
+        }, 1000);
     }
 }
 
@@ -1392,8 +1431,7 @@ window.onload = function() {
         console.error("دالة initApp غير معرفة! تأكد من وجودها في الكود.");
     }
 };
-    </script>
+</script>
 
 </body>
-
 </html>
