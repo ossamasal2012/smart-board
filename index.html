@@ -1338,21 +1338,18 @@ function toggleUI(){
 async function exportPNG() {
     const dataUrl = canvas.toDataURL({format: 'png', quality: 1});
     
-    // التحقق هل نحن داخل تطبيق أندرويد (Capacitor)
     if (window.Capacitor && window.Capacitor.isNativePlatform()) {
-        const { Filesystem } = Capacitor.Plugins;
-        const { Share } = Capacitor.Plugins;
         try {
+            const { Filesystem, Share } = Capacitor.Plugins;
             const fileName = `board_${Date.now()}.png`;
             const result = await Filesystem.writeFile({
                 path: fileName,
                 data: dataUrl,
-                directory: 'CACHE' // نستخدم الذاكرة المؤقتة للمشاركة السريعة
+                directory: 'CACHE'
             });
             await Share.share({ title: 'حفظ الصورة', url: result.uri });
         } catch (e) { alert("خطأ في الحفظ: " + e); }
     } else {
-        // الكود الأصلي للمتصفح
         const a = document.createElement('a');
         a.download = 'board.png';
         a.href = dataUrl;
@@ -1371,10 +1368,8 @@ async function exportPDF() {
     pdf.addImage(data, 'PNG', 0, 0, canvas.width, canvas.height);
 
     if (window.Capacitor && window.Capacitor.isNativePlatform()) {
-        const { Filesystem } = Capacitor.Plugins;
-        const { Share } = Capacitor.Plugins;
         try {
-            // تحويل الـ PDF إلى Base64
+            const { Filesystem, Share } = Capacitor.Plugins;
             const pdfBase64 = pdf.output('datauristring').split(',')[1];
             const fileName = `board_${Date.now()}.pdf`;
             const result = await Filesystem.writeFile({
@@ -1385,13 +1380,20 @@ async function exportPDF() {
             await Share.share({ title: 'حفظ PDF', url: result.uri });
         } catch (e) { alert("خطأ في حفظ PDF: " + e); }
     } else {
-        // الكود الأصلي للمتصفح
         pdf.save('board.pdf');
     }
 }
-}
 
-window.onload=initApp;
-</script>
+// تشغيل التطبيق عند تحميل الصفحة
+window.onload = function() {
+    if (typeof initApp === "function") {
+        initApp();
+    } else {
+        console.error("دالة initApp غير معرفة! تأكد من وجودها في الكود.");
+    }
+};
+    </script>
+
 </body>
+
 </html>
