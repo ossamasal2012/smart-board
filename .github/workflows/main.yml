@@ -1,5 +1,4 @@
 name: Build Infinite Whiteboard APK
-
 on:
   push:
     branches: [ main ]
@@ -8,85 +7,69 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Java 17
+      - name: Java Setup
         uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Setup Node.js
+      - name: Node Setup
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '20'
 
       - name: Create project files
         run: |
           mkdir -p src
-          # تأكد أن ملفك الأساسي اسمه index.html في المستودع
-          cp "index.html" src/index.html
+          # نسخ أي ملف html موجود ليصبح index.html
+          cp *.html src/index.html || echo "No html found"
           
-          # إنشاء ملف package.json مع المكتبات المطلوبة للتنزيل والمشاركة
           cat > package.json << 'EOF'
           {
             "name": "infinite.whiteboard.ossama",
             "version": "1.0.0",
             "dependencies": {
-              "@capacitor/android": "5.7.0",
-              "@capacitor/core": "5.7.0",
-              "@capacitor/filesystem": "5.7.0",
-              "@capacitor/share": "5.7.0"
+              "@capacitor/android": "^5.0.0",
+              "@capacitor/core": "^5.0.0",
+              "@capacitor/filesystem": "^5.0.0",
+              "@capacitor/share": "^5.0.0"
             },
             "devDependencies": {
-              "@capacitor/cli": "5.7.0"
+              "@capacitor/cli": "^5.0.0"
             }
           }
           EOF
-
-          # إعدادات Capacitor
+          
           cat > capacitor.config.json << 'EOF'
           {
             "appId": "com.ossama.whiteboard",
             "appName": "السبورة الذكية",
             "webDir": "src",
-            "android": {
-              "backgroundColor": "#000000"
-            }
+            "android": { "backgroundColor": "#000000" }
           }
           EOF
 
       - name: Install dependencies
         run: npm install --legacy-peer-deps
 
-      - name: Add Android platform
-        run: npx cap add android
-
-      - name: Sync web files and Plugins
-        run: npx cap sync android
-
-      - name: Add Android Permissions for Downloads
+      - name: Initialize Android
         run: |
-          # إضافة أذونات القراءة والكتابة في ملف المانيفست تلقائياً
+          npx cap add android
+          npx cap sync android
+
+      - name: Add Permissions
+        run: |
           sed -i '/<application/i \    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />' android/app/src/main/AndroidManifest.xml
           sed -i '/<application/i \    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />' android/app/src/main/AndroidManifest.xml
-
-      - name: Set App Icon
-        run: |
-          mkdir -p assets
-          curl -L "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQtqcg6zsweD4gOxtyqyKZ5SKHzlNr4NZu8_A&s" -o assets/icon.png
-          npm install -g @capacitor/assets
-          npx capacitor-assets generate --android
-
-      - name: Make gradlew executable
-        run: chmod +x android/gradlew
 
       - name: Build APK
         run: |
           cd android
+          chmod +x gradlew
           ./gradlew assembleDebug --no-daemon
 
       - name: Upload APK
@@ -94,4 +77,3 @@ jobs:
         with:
           name: Whiteboard-APK
           path: android/app/build/outputs/apk/debug/app-debug.apk
-          retention-days: 30
