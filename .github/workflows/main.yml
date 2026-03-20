@@ -22,13 +22,13 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
 
       - name: Create project files
         run: |
           mkdir -p src
           # نسخ ملف الـ HTML الخاص بك ليصبح index.html داخل مجلد العمل
-          cp *.html src/index.html || echo "Warning: No HTML file found!"
+          cp index.html src/index.html || echo "Warning: No HTML file found!"
           
           # إنشاء package.json مع أحدث إصدارات Capacitor لضمان التوافق
           cat > package.json << 'EOF'
