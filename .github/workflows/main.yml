@@ -60,6 +60,20 @@ jobs:
           npx cap add android
           npx cap sync android
 
+      - name: Set App Icon
+        run: |
+          mkdir -p assets
+          # التأكد من وجود أيقونتك، إذا لم توجد سيستخدم أيقونة افتراضية مؤقتاً
+          if [ -f "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAOEAAADhCAMAAAAJbSJIAAAAclBMVEX///8BAQEAAACgoKBERETg4OBWVlY/Pz/Z2dn8/PypqamWlpYFBQXNzc3z8/Pe3t5zc3Pm5uZgYGAsLCywsLC7u7tqamqRkZGEhIQXFxd+fn4jIyPGxsY2NjbAwMCrq6szMzMmJiacnJyLi4tlZWVPT09XAbPiAAADzUlEQVR4nO2da1PiMBRA26ug0VAsAiIq7i74///i9vZFwf2ge0lqO+eMMzIVSo43uXl0JkkSAAAAAAAAAAAAAAAAAAAAAACAQNw+XK9niXN9lyMYO1HuktEaZqn41ItMRmrokpVIqj9XfRclGHeSKvLUd0EC4VrD+76LEoz30RsSw/7J5xMTT6Whl01uu0+eBBk0uHwqZqoYmrmehxg0ZM/WcvlKUKNoJr+8YHIv2lmn/4+0H7bcpb7VNoDh1FyuCyLXoze8CWJYKtZVVdLmV+dl+D9IBMMLZEIboQ1F3q775KauSSEN5wHu/XXy4Iap3Aa499cJbyg9G04wNIBhHDC0gGEcMLSAYRwwtIBhHDC0gGEcMLSAYRwwtIBhHDC0gGEcMLSAYRwwtIBhHDC0gGEcMLSAYRwwtIBhHDC0gGEcMLSAYRwwtIBhHDC0gGEcMLSAYRwwtIBhHDC0gGEcMLSAYRwwtIBhHDC0gGEcMLSAYRwwtIBhHDC0gGEcMLSAYRxiGI5/n6jNVZ/sgxv6C+zq+KP3axPvfdof7bcHMixv3aNf5+sDGfYZvVMkiOFWd1i1hFDaDxsrgrbGRQDDuW4iawlj04hE05VFULPdLICh7hl/kTx4iU12r8IcPpAvjZ3Zuk71C+N93vOfeoDEsjb803dBgjH+PdkxHD4YDp/xG/780x+sVDGUcfaHrhiEvL7UMXx5/aljEgMucQ/NwLQYl25HJ5gkr8/NAkQxx/DyEmRy0BsuydoA6uxJz7WSjRtTVZ09dk4oqSMpjyMK41a0ap7Oen06jtaoKXT2Uq7SfZ7Wi7bG4Uu6jbbAarm8VavDWCTV/eANb48t0B/XAiUtV3w04zzqcxA30FC6TgB94Sm/pMoxv495VcNYvnWYlAFs4/Y8a1cx2s6xCeMADYsiuyfV8GX9LDwess7cIluX2acZ4jwNzlC78vlbWxe1Z9glp3OLnYa3HomLvA0tjEULvO+kTpF1pgbHGBb/Ag1jZwV1aDOqbgCLYK2qq2cz4J1vhuL6pptJf8X9PlkTnXKBepHVVfB8jp8tmkykNdZn/RX42+z12ULdzcuqHNkoZ4ZO14jFt2l1SAewTsvnVF4zzKGNjJ606k9imNRhrJ9ch3ieFIpDbdi2QEXPA051fNM9D9hpGOtor+MX9L9ZVmNtmeYnnUBWjuBEjjlF6291Nmaq1XlAHMoUs0zOxmOrfz8aW5aXD0PqEou6t/jY55+LPK/OVj+/nG8+FqtBTfnrsn4qcnPZfekyAAAAAAAAAAAAAAAAAAAAAABcmr/deTo92FkvcgAAAABJRU5ErkJggg==" ]; then
+            cp icon.png assets/icon.png
+          else
+            curl -L "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQtqcg6zsweD4gOxtyqyKZ5SKHzlNr4NZu8_A&s" -o assets/icon.png
+          fi
+          
+          npm install -g @capacitor/assets
+          # توليد جميع أحجام الأيقونات المطلوبة لنظام أندرويد تلقائياً
+          npx capacitor-assets generate --android
+
       - name: Add Permissions
         run: |
           sed -i '/<application/i \    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />' android/app/src/main/AndroidManifest.xml
